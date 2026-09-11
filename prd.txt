@@ -1,0 +1,351 @@
+# Product Requirements Document (PRD)
+## AI/ML-Enabled Adaptive Noise Cancellation System for Defence Communications
+**Problem Statement ID:** 26052  
+**Organization:** DRDO / Department of Defence Production (IDEX)  
+**Category:** Hardware  
+**Document Version:** 1.0  
+**Status:** Draft for Development  
+
+---
+
+### 1. Executive Summary
+This PRD defines requirements for an AI/ML-enabled Adaptive Noise Cancellation (ANC) system that suppresses stationary, non-stationary, and impulsive defence noises while preserving speech intelligibility in real time on embedded hardware. The system targets defence, aerospace, and high-noise industrial communication environments.
+
+---
+
+### 2. Problem Statement
+Defence and mission-critical communication is degraded by diverse acoustic disturbances:
+- **Stationary noise:** engine hum, wind, rotor wash
+- **Non-stationary noise:** sirens, changing vehicle RPM
+- **Impulsive noise:** gunshots, artillery fire, explosions
+
+Traditional techniques (spectral subtraction, Wiener filtering, LMS-based ANC) fail because they assume stationary noise, introduce artifacts, and distort speech under dynamic conditions.
+
+**Goal:** Build a hybrid AI + adaptive filtering system that delivers clean, intelligible speech in real time on edge hardware.
+
+---
+
+### 3. Objectives & Success Metrics
+
+#### 3.1 Primary Objectives
+- Suppress stationary, non-stationary, and impulsive defence noises
+- Preserve speech intelligibility and perceptual quality
+- Operate in real time on embedded/edge hardware
+- Provide a deployable prototype with mic + headset integration
+
+#### 3.2 Key Performance Indicators (KPIs)
+| Metric | Target | Measurement |
+|---|---|---|
+| **SNR improvement** | > 15 dB | Segmental SNR on test set |
+| **STOI** | > 0.85 | Short-Time Objective Intelligibility |
+| **PESQ** | > 2.5 | ITU-T P.862 |
+| **End-to-end latency** | < 40 ms | Mic → output |
+| **Power consumption** | TBD (Jetson Orin budget) | Measured at inference |
+| **Model size (deployed)** | < 50 MB (target) | After quantization |
+| **Real-time factor (RTF)** | < 1.0 (target < 0.5) | Processing time / audio duration |
+
+#### 3.3 Secondary Metrics
+- Word Error Rate (WER) via ASR downstream
+- MOS (Mean Opinion Score) from subjective listening
+- Noise reduction (NR) in dB
+- Speech distortion index
+
+---
+
+### 4. Scope
+
+#### 4.1 In Scope
+- Dataset pipeline (clean speech + defence noises)
+- AI/ML model training framework
+- Real-time inference engine
+- Edge deployment (Jetson AGX Orin 64GB or equivalent)
+- Hybrid AI + LMS residual suppression
+- Hardware prototype: primary + reference mic + headset
+- Validation on real noisy environments
+
+#### 4.2 Out of Scope (Phase 1)
+- Custom silicon / ASIC design
+- Multi-channel beamforming (> 2 mics)
+- Wireless transmission stack
+- Encryption / secure comms layer
+- Full MIL-STD certification
+
+---
+
+### 5. System Architecture
+
+#### 5.1 High-Level Pipeline
+```
+  Primary Mic ──┐
+                ├──► [Pre-processing] ──► [Encoder] ──► [AI Separator (TCN)] ──► [Decoder] ──► [LMS Residual] ──► Enhanced Speech
+  Ref Mic ──────┘         │                    │              │                        │              │
+                     (sync, VAD,          (learned         (mask for              (waveform       (residual
+                      framing)             filters)         speech vs noise)        recon)         cleanup)
+                                                                                                          │
+                                                                                                          ▼
+                                                                                                  Headset / Radio
+```
+
+#### 5.2 Component Breakdown
+| Layer | Component | Responsibility |
+|---|---|---|
+| **Input** | Dual-mic capture | Primary + reference, synchronized |
+| **Pre-proc** | VAD, framing, normalization | Chunking for streaming |
+| **Encoder** | 1D Conv | Learnable filterbank on raw waveform |
+| **Separator** | Dilated TCN | Estimate speech/noise mask |
+| **Decoder** | Transposed 1D Conv | Reconstruct waveform |
+| **Post-proc** | LMS adaptive filter | Residual noise suppression |
+| **Output** | Audio out | To headset/radio |
+
+#### 5.3 Key Architectural Decisions
+- **Waveform-domain processing** (not spectrogram) — preserves phase, lower latency
+- **Causal / streaming convolutions** — mandatory for real-time
+- **Two-stream output** — speech + noise (not N-speaker separation)
+- **Hybrid AI + LMS** — AI handles complex noise, LMS cleans residuals
+- **Quantization-aware training** — for INT8 deployment
+
+---
+
+### 6. Functional Requirements
+
+#### FR-1: Dataset Pipeline
+- **FR-1.1** Ingest clean speech corpora (LibriSpeech, VCTK, defence comms)
+- **FR-1.2** Ingest defence noise datasets (gunshots, artillery, rotors, engines, sirens, wind)
+- **FR-1.3** Generate noisy-clean pairs at SNR range −10 dB to +15 dB
+- **FR-1.4** Support augmentation: reverb, clipping, random impulsive bursts, speed perturbation
+- **FR-1.5** Reproducible mixing with seed control
+- **FR-1.6** Configurable train/val/test splits
+
+#### FR-2: Model Training
+- **FR-2.1** Support waveform-domain and complex-domain models
+- **FR-2.2** Loss functions: SI-SNR, L1/L2, perceptual loss (composable)
+- **FR-2.3** Evaluation: SNR, STOI, PESQ, WER
+- **FR-2.4** Hyperparameter config via YAML
+- **FR-2.5** Checkpointing, resume, logging (TensorBoard/W&B)
+- **FR-2.6** Mixed-precision training (FP16)
+- **FR-2.7** Distributed training support (multi-GPU)
+
+#### FR-3: Real-Time Inference Engine
+- **FR-3.1** Streaming chunk-based processing (configurable chunk size)
+- **FR-3.2** Overlap-add reconstruction without artifacts
+- **FR-3.3** Causal convolutions only
+- **FR-3.4** End-to-end latency < 40 ms
+- **FR-3.5** Handle variable input sample rates (16 kHz target)
+- **FR-3.6** Graceful degradation under CPU/GPU load
+
+#### FR-4: Edge Deployment
+- **FR-4.1** Export to ONNX
+- **FR-4.2** Convert to TensorRT for Jetson
+- **FR-4.3** INT8 quantization with < 2% metric drop
+- **FR-4.4** Pruning pipeline (structured/unstructured)
+- **FR-4.5** Benchmark latency, throughput, power
+- **FR-4.6** Containerized deployment (Docker)
+
+#### FR-5: Adaptive Filter Integration
+- **FR-5.1** Lightweight LMS/NLMS post-filter
+- **FR-5.2** Reference mic input for classical ANC
+- **FR-5.3** Configurable step size and filter length
+- **FR-5.4** Enable/disable at runtime
+
+#### FR-6: Hardware Prototype
+- **FR-6.1** Primary + reference MEMS mic array
+- **FR-6.2** Jetson AGX Orin 64GB (or equivalent)
+- **FR-6.3** Headset / radio interface
+- **FR-6.4** Real-time audio I/O (ALSA/PortAudio)
+- **FR-6.5** Portable, battery-capable form factor
+
+#### FR-7: Validation & Testing
+- **FR-7.1** Offline evaluation on held-out test set
+- **FR-7.2** Real-world field recordings
+- **FR-7.3** Subjective listening tests (MOS)
+- **FR-7.4** Latency and power profiling
+- **FR-7.5** Robustness to unseen noise types
+
+---
+
+### 7. Non-Functional Requirements
+| ID | Requirement | Target |
+|---|---|---|
+| **NFR-1** | Latency | < 40 ms end-to-end |
+| **NFR-2** | Real-time factor | < 0.5 |
+| **NFR-3** | Power | Within Jetson Orin budget |
+| **NFR-4** | Model size (deployed) | < 50 MB |
+| **NFR-5** | Reliability | > 99% uptime over 1 hr continuous |
+| **NFR-6** | Portability | Runs on Jetson Orin + x86 dev |
+| **NFR-7** | Maintainability | Modular codebase, documented APIs |
+| **NFR-8** | Reproducibility | Seeded, containerized training |
+| **NFR-9** | Security | No external network calls at inference |
+| **NFR-10** | Compliance | Follows DRDO data handling guidelines |
+
+---
+
+### 8. Data Requirements
+
+#### 8.1 Speech Data
+| Source | Purpose | Size |
+|---|---|---|
+| **LibriSpeech** | Pretraining | ~1000 hrs |
+| **VCTK** | Speaker diversity | ~44 hrs |
+| **Defence comms recordings** | Domain adaptation | TBD |
+
+#### 8.2 Noise Data
+| Category | Examples | Source |
+|---|---|---|
+| **Impulsive** | Gunshots, artillery, explosions | Freesound, ESC-50, custom |
+| **Rotor** | Helicopter, drone | Freesound, custom |
+| **Vehicle** | Tank, armored vehicle, engine | Freesound, custom |
+| **Ambient** | Wind, rain, crowd | DEMAND, UrbanSound8K |
+| **Sirens** | Emergency, alarm | UrbanSound8K |
+
+#### 8.3 Data Governance
+- Licensed / public-domain sources only
+- Defence recordings handled per DRDO policy
+- No PII in speech data
+- Versioned datasets with manifest files
+
+---
+
+### 9. Technology Stack
+| Layer | Choice |
+|---|---|
+| **Language** | Python 3.10+ |
+| **DL Framework** | PyTorch 2.x |
+| **Audio I/O** | torchaudio, soundfile, librosa |
+| **Metrics** | pystoi, pesq, jiwer |
+| **Deployment** | ONNX, TensorRT, Docker |
+| **Hardware** | NVIDIA Jetson AGX Orin 64GB |
+| **Audio HW** | MEMS mic array, USB audio interface |
+| **Version Control** | Git + DVC (data) |
+| **Experiment Tracking** | Weights & Biases / MLflow |
+
+---
+
+### 10. Milestones & Timeline
+| Phase | Deliverable | Duration |
+|---|---|---|
+| **P0** | Requirements freeze, dataset pipeline | Week 1–3 |
+| **P1** | Baseline Conv-TasNet trained, offline metrics | Week 4–7 |
+| **P2** | Improved model (impulsive-robust, causal) | Week 8–12 |
+| **P3** | ONNX/TensorRT export, INT8 quantization | Week 13–15 |
+| **P4** | Real-time inference engine on Jetson | Week 16–18 |
+| **P5** | Hardware prototype (dual-mic + headset) | Week 19–22 |
+| **P6** | Field validation, KPI verification | Week 23–26 |
+| **P7** | Documentation, demo, handover | Week 27–28 |
+
+---
+
+### 11. Risks & Mitigations
+| Risk | Impact | Likelihood | Mitigation |
+|---|---|---|---|
+| **Impulsive noise breaks model** | High | High | Heavy augmentation, transient detector, dedicated suppressor |
+| **Latency > 40 ms on edge** | High | Medium | Causal convs, small receptive field, TensorRT INT8 |
+| **Metric targets not met** | High | Medium | Ensemble models, perceptual loss tuning, more data |
+| **Phase distortion** | Medium | Medium | Complex-domain model, waveform-domain training |
+| **Overfitting to synthetic data** | Medium | High | Domain randomization, real recordings, augmentation |
+| **Hardware supply delays** | Medium | Low | Alternative: x86 + RTX, Jetson Xavier NX |
+| **Reference mic sync issues** | Medium | Medium | Hardware timestamping, calibration |
+| **Quantization drops accuracy** | Medium | Medium | QAT, per-channel quantization, mixed precision |
+
+---
+
+### 12. Evaluation Plan
+
+#### 12.1 Offline
+- **Test set:** held-out mixtures at multiple SNRs
+- **Metrics:** SNR, STOI, PESQ, WER
+- **Compare against:** baseline Conv-TasNet, DeepFilterNet, GTCRN, classical LMS
+
+#### 12.2 Online / Real-Time
+- Latency profiling (mic → output)
+- RTF measurement
+- Power draw on Jetson
+- Continuous run stability
+
+#### 12.3 Field
+- Real noisy environments (range, vehicle, outdoor)
+- Subjective MOS from listeners
+- ASR WER downstream
+
+#### 12.4 Acceptance Criteria
+- All primary KPIs met (SNR > 15 dB, STOI > 0.85, PESQ > 2.5)
+- Latency < 40 ms
+- Prototype demonstrated live
+
+---
+
+### 13. Deliverables
+- **Dataset pipeline** — scripts + manifests + docs
+- **Trained model** — weights + config + training logs
+- **Training framework** — reproducible, documented
+- **Inference engine** — real-time, streaming
+- **Edge deployment package** — ONNX, TensorRT, Docker
+- **Hardware prototype** — dual-mic + Jetson + headset
+- **Evaluation report** — metrics, plots, comparisons
+- **Technical documentation** — architecture, APIs, ops guide
+- **Demo video** — live noise cancellation
+
+---
+
+### 14. Stakeholders
+| Role | Responsibility |
+|---|---|
+| **DRDO / IDEX** | Sponsor, requirements, acceptance |
+| **ML Engineers** | Model design, training, optimization |
+| **Embedded Engineers** | Edge deployment, hardware integration |
+| **Audio/DSP Engineers** | Signal chain, LMS, mic array |
+| **Test/Validation** | Field trials, metrics |
+| **End Users (Defence Personnel)** | Feedback, usability |
+
+---
+
+### 15. Assumptions & Constraints
+
+#### Assumptions
+- Access to defence noise datasets or ability to record
+- Jetson AGX Orin 64GB available
+- Team has ML + embedded + DSP skills
+- Speech is primary signal of interest (16 kHz)
+
+#### Constraints
+- Real-time latency < 40 ms
+- Must run fully offline on edge
+- Power budget limited by portable form factor
+- Data handling per DRDO policy
+
+---
+
+### 16. Future Enhancements (Post-Phase 1)
+- Multi-channel beamforming (> 2 mics)
+- Speaker diarization + separation
+- Personalization (per-soldier voice model)
+- On-device continual learning
+- Integration with encrypted radio stack
+- MIL-STD ruggedization
+- ASIC/FPGA acceleration
+
+---
+
+### 17. Appendix
+
+#### A. Glossary
+- **ANC:** Adaptive Noise Cancellation
+- **SNR:** Signal-to-Noise Ratio
+- **STOI:** Short-Time Objective Intelligibility
+- **PESQ:** Perceptual Evaluation of Speech Quality
+- **RTF:** Real-Time Factor
+- **TCN:** Temporal Convolutional Network
+- **LMS:** Least Mean Squares
+- **QAT:** Quantization-Aware Training
+
+#### B. Reference Models
+- Conv-TasNet (baseline)
+- DeepFilterNet (edge-friendly)
+- GTCRN (ultra-lightweight)
+- DCCRN / FRCRN (complex-domain)
+- SepFormer (SOTA separation)
+
+#### C. Reference Tools
+- `pystoi`, `pesq`, `jiwer`, `torchaudio`, `onnxruntime`, `tensorrt`
+
+---
+*End of PRD*

@@ -1,0 +1,42 @@
+"nodes":[
+	{
+		"id":"7841f83e-6c7e-4d04-9a9e-6f53dfa09325",
+		"bounds":{
+			"x":300,
+			"y":300,
+			"w":150,
+			"h":50
+		},
+		"z":0,
+		"group":0,
+		"label":"Node 1",
+		"type":"rect"
+	},
+	{
+		"id":"1f730764-b20e-4e1b-84ee-7245f71b3d7d",
+		"bounds":{
+			"x":350,
+			"y":400,
+			"w":150,
+			"h":50
+		},
+		"z":0,
+		"group":0,
+		"label":"Node 2",
+		"type":"rect"
+	}
+],
+"edges":[
+	{
+		"id":"a56a0a20-c0d4-44b0-a97b-1a7b31c62584",
+		"bounds":{
+			"x":350,
+			"y":300,
+			"w":50,
+			"h":100
+		},
+		"z":0,
+		"group":0,
+		"label":"edge-1"
+	}
+]
