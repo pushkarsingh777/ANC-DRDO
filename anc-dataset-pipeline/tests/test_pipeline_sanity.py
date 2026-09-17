@@ -17,7 +17,10 @@ import os
 # pyrefly: ignore [missing-import]
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
+
 from src.audio_utils import load_audio, measure_snr_db
 
 

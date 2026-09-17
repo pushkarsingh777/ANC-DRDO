@@ -18,6 +18,7 @@ import os
 import csv
 from dataclasses import dataclass, asdict
 
+# pyrefly: ignore [missing-import]
 import numpy as np
 
 from .audio_utils import load_audio, save_audio, fit_or_loop_to_length, mix_at_snr
@@ -81,11 +82,10 @@ def generate_split(
     subtype = cfg["output"].get("subtype", "PCM_16")
 
     records: list[MixtureRecord] = []
+    split_speech = [s for s in speech_entries if s["split"] == split or split == "all"]
+    total_split = len(split_speech)
 
-    for i, s in enumerate(speech_entries):
-        if s["split"] != split and split != "all":
-            continue
-
+    for idx, s in enumerate(split_speech, start=1):
         speech = load_audio(s["path"], sr)
         if len(speech) < int(0.5 * sr):
             continue  # skip near-empty clips
@@ -139,7 +139,7 @@ def generate_split(
             mixture = apply_clipping(mixture, thresh)
             clipping_applied = True
 
-        mixture_id = f"{split}_{i:06d}"
+        mixture_id = f"{split}_{idx:06d}"
         mix_path = os.path.join(mix_dir, f"{mixture_id}.wav")
         clean_path = os.path.join(clean_dir, f"{mixture_id}.wav")
         noise_path = os.path.join(noise_dir, f"{mixture_id}.wav")
@@ -166,6 +166,10 @@ def generate_split(
             clean_wav=clean_path,
             noise_wav=noise_path,
         ))
+
+        if idx % 250 == 0 or idx == total_split:
+            pct = (idx / total_split) * 100
+            print(f"  [{split}] {idx:4d}/{total_split} ({pct:5.1f}%) mixtures created...")
 
     return records
 

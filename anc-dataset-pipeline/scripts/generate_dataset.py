@@ -25,7 +25,10 @@ def deterministic_offset(name: str, modulus: int = 10_000) -> int:
     digest = hashlib.sha256(name.encode("utf-8")).hexdigest()
     return int(digest, 16) % modulus
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
+
 from src.manifest import read_csv
 from src.mixture_generator import generate_split, write_mixture_manifest
 

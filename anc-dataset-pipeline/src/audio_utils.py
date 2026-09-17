@@ -46,8 +46,16 @@ def fit_or_loop_to_length(audio: np.ndarray, length: int, rng: np.random.Generat
         reps = int(np.ceil(length / len(audio)))
         audio = np.tile(audio, reps)
     if len(audio) > length:
-        start = int(rng.integers(0, len(audio) - length + 1))
-        audio = audio[start:start + length]
+        max_start = len(audio) - length
+        src_rms = rms(audio)
+        # If source has audio energy, ensure the crop is not purely silent trailing pad
+        best_crop = audio[:length]
+        for _ in range(5):
+            start = int(rng.integers(0, max_start + 1))
+            candidate = audio[start:start + length]
+            if src_rms < 1e-4 or rms(candidate) > 1e-4:
+                return candidate.astype(np.float32)
+        return best_crop.astype(np.float32)
     return audio.astype(np.float32)
 
 

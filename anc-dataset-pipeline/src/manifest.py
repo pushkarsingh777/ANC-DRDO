@@ -41,11 +41,38 @@ def _duration_s(path: str) -> float:
     return info.frames / info.samplerate
 
 
+def _infer_speaker_id(rel_path: str, filename: str) -> str:
+    """
+    Extracts speaker id from standard speech corpora layouts:
+    - LibriSpeech filename / folder: '1272-128104-0000.flac' -> '1272' or dev-clean/1272/...
+    - VCTK filename / folder: 'p225_001.wav' -> 'p225'
+    - Nested folder: 'speaker_id/...'
+    """
+    stem = os.path.splitext(filename)[0]
+    parts_hyphen = stem.split("-")
+    if len(parts_hyphen) >= 2 and parts_hyphen[0].isdigit():
+        return parts_hyphen[0]
+
+    parts_under = stem.split("_")
+    if len(parts_under) >= 2 and parts_under[0].startswith("p") and parts_under[0][1:].isdigit():
+        return parts_under[0]
+
+    parts = rel_path.split(os.sep)
+    for i, p in enumerate(parts[:-1]):
+        if p in {"LibriSpeech", "dev-clean", "train-clean-100", "train-clean-360", "test-clean", "wav48", "wav48_silence_trimmed"}:
+            if i + 1 < len(parts) - 1:
+                return parts[i + 1]
+
+    if len(parts) > 1:
+        return parts[0]
+    return "unknown"
+
+
 def scan_speech_dir(speech_dir: str) -> list[SpeechEntry]:
     """
     Expects either a flat folder of wavs, or LibriSpeech/VCTK-style
-    `speaker_id/**/*.wav` layout. Speaker id is inferred from the first
-    path component under speech_dir when present, else "unknown".
+    `speaker_id/**/*.wav` layout. Speaker id is inferred from the filename
+    or directory hierarchy.
     """
     entries: list[SpeechEntry] = []
     for root, _, files in os.walk(speech_dir):
@@ -54,8 +81,7 @@ def scan_speech_dir(speech_dir: str) -> list[SpeechEntry]:
                 continue
             full = os.path.join(root, f)
             rel = os.path.relpath(full, speech_dir)
-            parts = rel.split(os.sep)
-            speaker_id = parts[0] if len(parts) > 1 else "unknown"
+            speaker_id = _infer_speaker_id(rel, f)
             try:
                 dur = _duration_s(full)
             except Exception:

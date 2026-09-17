@@ -14,7 +14,10 @@ import sys
 import numpy as np
 import yaml
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, PROJECT_ROOT)
+
 from src.manifest import (
     scan_speech_dir, scan_noise_dir,
     split_speech_by_speaker, split_noise,

@@ -1,4 +1,3 @@
-@"
 # Python
 __pycache__/
 *.py[cod]
@@ -9,6 +8,7 @@ myenv/
 venv/
 .venv/
 env/
+venv_anc/
 
 # Downloaded datasets
 anc-dataset-pipeline/scripts/data/_downloads/
@@ -16,10 +16,13 @@ anc-dataset-pipeline/scripts/data/_downloads/
 # Generated data
 data/
 outputs/
+checkpoints/
+runs/
 *.wav
 *.mp3
 *.flac
 *.zip
+*.onnx
 
 # IDE
 .vscode/
@@ -28,4 +31,3 @@ outputs/
 # OS
 .DS_Store
 Thumbs.db
-"@ | Out-File -Encoding utf8 .gitignore
