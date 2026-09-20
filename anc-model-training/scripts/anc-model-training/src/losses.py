@@ -82,9 +82,7 @@ class SpectralConvergenceLoss(nn.Module):
         self.eps = eps
 
     def forward(self, x_mag: torch.Tensor, y_mag: torch.Tensor) -> torch.Tensor:
-        diff_norm = torch.linalg.norm(y_mag - x_mag, ord="fro", dim=(-2, -1))
-        target_norm = torch.linalg.norm(y_mag, ord="fro", dim=(-2, -1)) + self.eps
-        return torch.mean(diff_norm / target_norm)
+        return torch.norm(y_mag - x_mag, p="fro") / (torch.norm(y_mag, p="fro") + self.eps)
 
 
 class LogSTFTMagnitudeLoss(nn.Module):

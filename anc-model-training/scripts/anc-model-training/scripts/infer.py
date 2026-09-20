@@ -25,7 +25,6 @@ Usage:
     # Process an entire folder:
     python scripts/infer.py --input-dir test_audio/ --output-dir enhanced_audio/
 """
-
 from __future__ import annotations
 
 import argparse
@@ -117,68 +116,13 @@ def enhance_audio_onnx(
     return enhanced, t_proc
 
 
-def post_filter_residual(enhanced: np.ndarray, sr: int = 16000, alpha: float = 0.92) -> np.ndarray:
-    """
-    Lightweight adaptive spectral gate post-filter for residual noise suppression (FR-5).
-    Suppresses stationary and impulsive residuals without distorting speech harmonics.
-    """
-    n_fft = 512
-    hop = 128
-    window = np.hanning(n_fft)
-    
-    pad_len = (hop - (len(enhanced) % hop)) % hop
-    if pad_len > 0:
-        padded = np.pad(enhanced, (0, pad_len))
-    else:
-        padded = enhanced
-        
-    num_frames = (len(padded) - n_fft) // hop + 1
-    if num_frames < 1:
-        return enhanced
-        
-    frames = np.lib.stride_tricks.sliding_window_view(padded, n_fft)[::hop][:num_frames]
-    stft = np.fft.rfft(frames * window, axis=1)
-    mag = np.abs(stft)
-    
-    # Estimate noise floor dynamically per frequency bin
-    noise_floor = np.percentile(mag, 15, axis=0, keepdims=True)
-    snr_post = (mag ** 2) / (noise_floor ** 2 + 1e-8)
-    gain = np.clip(1.0 - (1.0 / (snr_post + 1e-4)) ** alpha, 0.05, 1.0)
-    
-    filtered_stft = stft * gain
-    inv_frames = np.fft.irfft(filtered_stft, axis=1) * window
-    out = np.zeros(len(padded), dtype=np.float32)
-    norm_w = np.zeros(len(padded), dtype=np.float32)
-    for i in range(num_frames):
-        st = i * hop
-        out[st:st + n_fft] += inv_frames[i]
-        norm_w[st:st + n_fft] += window ** 2
-    norm_w = np.maximum(norm_w, 1e-8)
-    res = (out / norm_w)[:len(enhanced)]
-    return res.astype(np.float32)
-
-
-def save_audio(
-    enhanced: np.ndarray,
-    out_path: str,
-    sr: int = 16000,
-    normalize: bool = True,
-    ref_audio: np.ndarray | None = None,
-):
-    """Saves enhanced audio with peak-normalization and dynamic range matching."""
+def save_audio(enhanced: np.ndarray, out_path: str, sr: int = 16000, normalize: bool = True):
+    """Saves enhanced audio with peak-normalization if clipping occurs."""
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     
-    # Match energy level if enhanced speech has low gain
-    if ref_audio is not None:
-        ref_rms = np.sqrt(np.mean(ref_audio ** 2) + 1e-10)
-        enh_rms = np.sqrt(np.mean(enhanced ** 2) + 1e-10)
-        if enh_rms < 0.25 * ref_rms and enh_rms > 1e-6:
-            gain = min(ref_rms / enh_rms * 0.8, 4.0)
-            enhanced = enhanced * gain
-            
     peak = np.max(np.abs(enhanced))
-    if normalize and peak > 0.95:
-        enhanced = (enhanced / (peak + 1e-8)) * 0.95
+    if normalize and peak > 0.99:
+        enhanced = enhanced / (peak + 1e-8) * 0.95
         
     sf.write(out_path, enhanced, sr, subtype="PCM_16")
 
@@ -192,7 +136,6 @@ def main():
     parser.add_argument("--checkpoint", "-c", type=str, default="checkpoints/best_checkpoint.pt", help="Path to PyTorch checkpoint .pt")
     parser.add_argument("--onnx", type=str, default=None, help="Path to ONNX model file (.onnx) for inference")
     parser.add_argument("--device", type=str, default=None, help="Device ('cuda', 'cpu')")
-    parser.add_argument("--post-filter", action="store_true", help="Apply adaptive Wiener post-filter for residual suppression (FR-5)")
     args = parser.parse_args()
 
     # Determine input files
@@ -272,18 +215,14 @@ def main():
         else:
             enhanced, proc_time = enhance_audio_pytorch(model, audio, device)
 
-        # Apply optional post-filter
-        if args.post_filter:
-            enhanced = post_filter_residual(enhanced, sr=sr)
+        rtf = proc_time / max(audio_dur, 1e-6)
 
         # Save enhanced audio
-        save_audio(enhanced, out_file, sr=sr, ref_audio=audio)
+        save_audio(enhanced, out_file, sr=sr)
 
         print(f"[{idx}/{len(input_files)}] Input:    {in_file} ({audio_dur:.2f}s)")
         print(f"        Output:   {out_file}")
         print(f"        Latency:  {proc_time * 1000:.1f} ms | RTF: {rtf:.4f} ({1/rtf:.1f}x real-time)")
-        if args.post_filter:
-            print(f"        Filter:   Adaptive Wiener post-filter applied (FR-5)")
         print("-" * 75)
 
     print(f"\nAll enhancement tasks completed successfully!")

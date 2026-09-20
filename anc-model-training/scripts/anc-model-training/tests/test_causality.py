@@ -49,19 +49,17 @@ class TestModelCausality(unittest.TestCase):
             out_a = self.model(x_a)
             out_b = self.model(x_b)
 
-        # In overlap-add / transposed conv synthesis with kernel L and stride S,
-        # algorithmic frame latency is (L - S) samples (16 samples = 1.0 ms at 16kHz).
-        # Any output before `split_point - (L - S)` is guaranteed strictly causal.
-        algorithmic_delay = self.model.encoder_kernel_size - self.model.encoder_stride
-        valid_causal_end = split_point - algorithmic_delay
-        diff = torch.abs(out_a[:, :valid_causal_end] - out_b[:, :valid_causal_end])
+        # Calculate max discrepancy in the first half
+        # Due to causal left padding and causal dilated convolutions,
+        # the output up to split_point must NOT be affected by x[split_point:]
+        diff = torch.abs(out_a[:, :split_point] - out_b[:, :split_point])
         max_diff = torch.max(diff).item()
 
-        print(f"\n[Causality Test] Max difference before causal horizon ({valid_causal_end} samples): {max_diff:.6e}")
+        print(f"\n[Causality Test] Max difference before split point: {max_diff:.6e}")
         self.assertLess(
             max_diff,
             1e-5,
-            f"Future lookahead detected! Output before causal horizon changed by {max_diff:.6e}",
+            f"Future lookahead detected! Output before split point changed by {max_diff:.6e}",
         )
 
 

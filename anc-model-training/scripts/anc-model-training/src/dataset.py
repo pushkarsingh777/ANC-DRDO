@@ -44,7 +44,6 @@ class SpeechEnhancementDataset(Dataset):
         self.segment_samples = int(segment_length_s * sample_rate) if segment_length_s else None
         self.is_train = is_train
         self.load_noise_ref = load_noise_ref
-        self._cache: dict[str, np.ndarray] = {}
         
         self.records = []
         if os.path.exists(manifest_path):
@@ -58,10 +57,6 @@ class SpeechEnhancementDataset(Dataset):
         return len(self.records)
 
     def _load_audio(self, path: str) -> np.ndarray:
-        if path in self._cache:
-            return self._cache[path]
-
-        resolved_path = path
         # Resolve path relative to dataset pipeline or project root if needed
         if not os.path.isabs(path) and not os.path.exists(path):
             # Try prepending repo root or anc-dataset-pipeline
@@ -73,14 +68,15 @@ class SpeechEnhancementDataset(Dataset):
             ]
             for cand in candidates:
                 if os.path.exists(cand):
-                    resolved_path = cand
+                    path = cand
                     break
                     
-        audio, sr = sf.read(resolved_path, always_2d=False, dtype="float32")
+        audio, sr = sf.read(path, always_2d=False, dtype="float32")
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
-        
-        self._cache[path] = audio
+        if sr != self.sample_rate:
+            # Simple fallback if necessary
+            pass
         return audio
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor | str]:
@@ -89,8 +85,8 @@ class SpeechEnhancementDataset(Dataset):
         mix_audio = self._load_audio(rec["mixture_wav"])
         clean_audio = self._load_audio(rec["clean_wav"])
         
-        # Slicing for fixed-length chunks (train: random crop, val: deterministic center crop)
-        if self.segment_samples is not None:
+        # Slicing for fixed-length training chunks
+        if self.is_train and self.segment_samples is not None:
             seg_len = self.segment_samples
             total_len = len(mix_audio)
             
@@ -100,10 +96,8 @@ class SpeechEnhancementDataset(Dataset):
                 mix_audio = np.tile(mix_audio, reps)[:seg_len]
                 clean_audio = np.tile(clean_audio, reps)[:seg_len]
             elif total_len > seg_len:
-                if self.is_train:
-                    start = random.randint(0, total_len - seg_len)
-                else:
-                    start = (total_len - seg_len) // 2
+                # Random crop
+                start = random.randint(0, total_len - seg_len)
                 mix_audio = mix_audio[start:start + seg_len]
                 clean_audio = clean_audio[start:start + seg_len]
         

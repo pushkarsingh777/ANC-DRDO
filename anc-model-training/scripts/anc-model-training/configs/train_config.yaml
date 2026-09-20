@@ -11,8 +11,8 @@ paths:
 data:
   sample_rate: 16000
   segment_length_s: 2.0     # 2.0s = 32,000 samples per training crop
-  batch_size: 4            # optimal VRAM usage for 4GB RTX 2050
-  eval_batch_size: 2
+  batch_size: 4            # optimal for 4GB RTX 2050 with AMP
+  eval_batch_size: 1
   num_workers: 0           # 0 avoids Windows multiprocessing overhead
   pin_memory: true
 
@@ -31,7 +31,7 @@ model:
 
 training:
   epochs: 50
-  learning_rate: 0.0005
+  learning_rate: 0.001
   weight_decay: 0.00001
   grad_clip_norm: 5.0
   use_amp: true            # Automatic Mixed Precision (FP16)
@@ -44,7 +44,7 @@ training:
   
   # Loss weighting
   si_snr_weight: 1.0
-  stft_weight: 0.5         # Multi-resolution spectral loss for clear speech & impulsive suppression
+  stft_weight: 0.0         # Set > 0 if multi-resolution spectral loss is desired
 
 evaluation:
   compute_pesq: true

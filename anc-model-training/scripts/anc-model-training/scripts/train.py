@@ -23,14 +23,8 @@ import time
 import yaml
 # pyrefly: ignore [missing-import]
 import torch
-try:
-    # pyrefly: ignore [missing-import]
-    from torch.utils.tensorboard import SummaryWriter
-except (ImportError, ModuleNotFoundError):
-    class SummaryWriter:  # type: ignore
-        def __init__(self, *args, **kwargs): pass
-        def add_scalar(self, *args, **kwargs): pass
-        def close(self): pass
+# pyrefly: ignore [missing-import]
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import numpy as np
 
@@ -119,13 +113,9 @@ def validate(
                 
             mixture = batch["mixture"].to(device)
             clean = batch["clean"].to(device)
-
-            if device.type == "cuda":
-                with torch.amp.autocast("cuda", dtype=torch.float16):
-                    est_speech = model(mixture)
-            else:
-                est_speech = model(mixture)
-            loss, metrics = criterion(est_speech.float(), clean.float())
+            
+            est_speech = model(mixture)
+            loss, metrics = criterion(est_speech, clean)
             
             bs = mixture.shape[0]
             total_loss += loss.item() * bs

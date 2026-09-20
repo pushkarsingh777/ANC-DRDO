@@ -185,8 +185,8 @@ class CausalConvTasNet(nn.Module):
         # 8. Decode back to waveform
         enhanced = self.decoder(masked_w)
         
-        # Match original length and compensate for causal left-padding
-        enhanced = enhanced[:, 0, causal_pad : causal_pad + orig_length]
+        # Match original length
+        enhanced = enhanced[:, 0, :orig_length]
         return enhanced
 
     @classmethod
